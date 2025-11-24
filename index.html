@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UPSC Test Generator</title>
+  <link rel="stylesheet" href="index.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <main>
+    <div class="top-controls">
+        <div class="data-backup-box">
+            <button id="backup-data-btn" title="Backup Profile (Download)">
+                <span class="material-symbols-outlined">cloud_download</span>
+            </button>
+            <div class="divider"></div>
+            <button id="restore-data-btn" title="Restore Profile (Upload)">
+                <span class="material-symbols-outlined">cloud_upload</span>
+            </button>
+            <input type="file" id="restore-file-input" class="hidden" accept=".json,application/json">
+        </div>
+    </div>
+    <header>
+      <div class="header-title-container">
+        <h1><span class="gradient-text">UPSC Test Generator</span></h1>
+      </div>
+      <p>Your personalized platform for mastering the civil services exam.</p>
+    </header>
+    <section class="card-container">
+      <div class="card" role="button" tabindex="0" aria-labelledby="create-test-title">
+        <div class="card-icon">
+          <span class="material-symbols-outlined">edit_square</span>
+        </div>
+        <h2 id="create-test-title">Create Test</h2>
+        <p>Generate a new custom test based on your preferences.</p>
+      </div>
+      <div class="card" role="button" tabindex="0" aria-labelledby="all-tests-title">
+        <div class="card-icon">
+          <span class="material-symbols-outlined">library_books</span>
+        </div>
+        <h2 id="all-tests-title">All Tests</h2>
+        <p>Review and retake your previously generated tests.</p>
+      </div>
+      <div class="card" role="button" tabindex="0" aria-labelledby="performance-title">
+        <div class="card-icon">
+          <span class="material-symbols-outlined">monitoring</span>
+        </div>
+        <h2 id="performance-title">Results</h2>
+        <p>View your past test scores and detailed analysis.</p>
+      </div>
+      <div class="card" role="button" tabindex="0" aria-labelledby="analytics-title">
+        <div class="card-icon">
+          <span class="material-symbols-outlined">analytics</span>
+        </div>
+        <h2 id="analytics-title">Full Analysis</h2>
+        <p>Deep dive into your overall progress, strengths, and weaknesses.</p>
+      </div>
+    </section>
+  </main>
+
+  <section id="create-test-view" class="hidden">
+    <button id="back-to-home-from-create" class="back-button" aria-label="Go back to homepage">
+        <span class="material-symbols-outlined">arrow_back</span> Back
+    </button>
+    <h2>Create a New Test</h2>
+    <div class="test-creator-container">
+        <div class="tabs" role="tablist">
+            <button class="tab-button active" role="tab" aria-selected="true" aria-controls="topic-content" data-tab="topic">By Topic</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="file-content" data-tab="file">From File</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="text-content" data-tab="text">From Text</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="manual-content" data-tab="manual">Bulk Import</button>
+        </div>
+        <div class="tab-content">
+            <div id="topic-content" class="tab-pane active" role="tabpanel">
+                <label for="topic-input">Enter Topic Name</label>
+                <input type="text" id="topic-input" placeholder="e.g., Indian Polity, Modern History">
+            </div>
+            <div id="file-content" class="tab-pane" role="tabpanel">
+                <label for="file-upload">Upload PDF or TXT File</label>
+                <input type="file" id="file-upload" accept=".pdf,.txt">
+            </div>
+            <div id="text-content" class="tab-pane" role="tabpanel">
+                <label for="text-input">Paste Your Text</label>
+                <textarea id="text-input" rows="10" placeholder="Paste relevant text here..."></textarea>
+            </div>
+            <div id="manual-content" class="tab-pane" role="tabpanel">
+                <label for="manual-input">Paste Questions (Structure Format)</label>
+                <div class="format-hint">
+                    <p><strong>Example Format:</strong></p>
+                    <pre>
+1. Which is the largest planet?
+a) Earth  b) Mars  c) Jupiter  d) Venus
+Answer: c
+Explanation: Jupiter is the largest planet in our solar system.
+Subject: Science | Topic: Solar System
+                    </pre>
+                </div>
+                <textarea id="manual-input" rows="12" placeholder="Paste your questions here following the format above..."></textarea>
+            </div>
+        </div>
+        <div class="config-grid">
+            <div class="config-item" style="grid-column: 1 / -1;">
+                <label for="test-name-input">Test Name</label>
+                <input type="text" id="test-name-input" placeholder="e.g., Indian Polity - Practice 1">
+            </div>
+            <div class="config-item">
+                <label for="questions-slider">Number of Questions: <span id="questions-count">75</span></label>
+                <input type="range" id="questions-slider" min="1" max="150" value="75">
+            </div>
+            <div class="config-item">
+                <label for="language-select">Language</label>
+                <select id="language-select">
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi</option>
+                </select>
+            </div>
+            <div class="config-item">
+                <label for="duration-input">Duration (minutes)</label>
+                <input type="number" id="duration-input" value="60" min="1">
+            </div>
+            <div class="config-item">
+                <label for="marks-input">Marks per Question</label>
+                <input type="number" id="marks-input" value="2" min="1" step="0.5">
+            </div>
+            <div class="config-item">
+                <label for="negative-input">Negative Marking</label>
+                <select id="negative-input">
+                    <option value="0">None (0)</option>
+                    <option value="0.33">1/3rd (0.33)</option>
+                    <option value="0.66" selected>0.66 (UPSC)</option>
+                    <option value="1">1.0</option>
+                    <option value="0.25">0.25</option>
+                    <option value="0.5">0.5</option>
+                </select>
+            </div>
+        </div>
+        <button id="generate-test-btn" class="generate-btn">Generate Test</button>
+    </div>
+    <div id="loader" class="loader-container hidden" aria-live="polite">
+        <div class="spinner"></div>
+        <p>Generating your test, please wait...</p>
+    </div>
+    <div id="results-container" class="results-container hidden"></div>
+  </section>
+
+  <section id="edit-test-view" class="hidden">
+    <button id="back-to-create" class="back-button" aria-label="Go back to test creation">
+        <span class="material-symbols-outlined">arrow_back</span> Back to Creator
+    </button>
+    <h2>Review & Edit Test</h2>
+    <div id="editable-questions-container"></div>
+    <div class="edit-actions">
+        <button id="add-question-btn" class="action-btn add-btn">
+            <span class="material-symbols-outlined">add_circle</span> Add Question
+        </button>
+        <button id="save-test-btn" class="action-btn save-btn">
+            <span class="material-symbols-outlined">save</span> Save Test
+        </button>
+    </div>
+  </section>
+
+  <section id="all-tests-view" class="hidden">
+     <button id="back-to-home-from-all-tests" class="back-button" aria-label="Go back to homepage">
+        <span class="material-symbols-outlined">arrow_back</span> Back
+    </button>
+    <div class="view-header">
+      <h2>All Saved Tests</h2>
+      <input type="file" id="import-test-input" class="hidden" accept=".json,application/json">
+      <button id="import-test-btn" class="action-btn add-btn">
+          <span class="material-symbols-outlined">upload_file</span> Import Single Test
+      </button>
+    </div>
+    <div id="all-tests-container" class="all-tests-grid">
+        <p class="placeholder">You haven't saved any tests yet.</p>
+    </div>
+  </section>
+  
+  <section id="test-detail-view" class="hidden">
+      <button id="back-to-all-tests-from-detail" class="back-button" aria-label="Go back to all tests list">
+          <span class="material-symbols-outlined">arrow_back</span> Back to All Tests
+      </button>
+      <h2 id="test-detail-title">Test Details</h2>
+      <div id="test-detail-container"></div>
+      <div id="test-detail-actions" class="edit-actions" style="justify-content: center; margin-top: 2rem;">
+        <button id="start-test-btn" class="action-btn save-btn">
+            <span class="material-symbols-outlined">play_circle</span> Start Test
+        </button>
+        <button id="delete-test-btn" class="action-btn" style="background-color: var(--danger-color); color: white;">
+            <span class="material-symbols-outlined">delete</span> Delete Test
+        </button>
+      </div>
+  </section>
+
+  <section id="test-attempt-view" class="hidden">
+    <header class="test-header">
+      <h2 id="attempt-test-title"></h2>
+      <div class="timer">
+        <span class="material-symbols-outlined">timer</span>
+        Time Left: <span id="time-left">00:00:00</span>
+      </div>
+      <button id="submit-test-btn" class="submit-btn">Finish &amp; Submit</button>
+    </header>
+    <div class="test-body">
+      <div class="question-area">
+        <div id="question-content">
+          <!-- Question will be rendered here -->
+        </div>
+        <div class="question-nav">
+          <button id="mark-review-btn" class="action-btn">Mark for Review & Next</button>
+          <button id="clear-response-btn" class="action-btn">Clear Response</button>
+          <button id="save-next-btn" class="action-btn save-btn">Save & Next</button>
+        </div>
+      </div>
+      <aside class="sidebar">
+        <div id="question-palette">
+          <!-- Palette will be rendered here -->
+        </div>
+        <div class="status-summary">
+          <h4>Legend</h4>
+          <div class="legend-item"><span class="palette-indicator answered"></span> Answered</div>
+          <div class="legend-item"><span class="palette-indicator not-answered"></span> Not Answered</div>
+          <div class="legend-item"><span class="palette-indicator marked"></span> Marked for Review</div>
+          <div class="legend-item"><span class="palette-indicator marked-answered"></span> Answered & Marked</div>
+          <div class="legend-item"><span class="palette-indicator not-visited"></span> Not Visited</div>
+        </div>
+        <div class="shortcuts-summary">
+            <h4>Shortcuts</h4>
+            <div class="shortcut-item"><span>1, 2, 3, 4</span> Select Option</div>
+            <div class="shortcut-item"><span>Space</span> Save & Next</div>
+            <div class="shortcut-item"><span>M</span> Mark for Review</div>
+            <div class="shortcut-item"><span>C</span> Clear Response</div>
+        </div>
+      </aside>
+    </div>
+    <button id="back-to-all-tests" class="back-button" aria-label="Go back to all tests list">
+        <span class="material-symbols-outlined">arrow_back</span> Abandon Test
+    </button>
+  </section>
+
+  <section id="performance-view" class="hidden">
+    <button id="back-to-home-from-performance" class="back-button" aria-label="Go back to homepage">
+      <span class="material-symbols-outlined">arrow_back</span> Back
+    </button>
+    <h2>Results History</h2>
+    <div id="performance-container">
+      <p class="placeholder">You haven't completed any tests yet.</p>
+    </div>
+  </section>
+
+  <section id="analytics-view" class="hidden">
+      <button id="back-to-home-from-analytics" class="back-button" aria-label="Go back to homepage">
+          <span class="material-symbols-outlined">arrow_back</span> Back
+      </button>
+      <h2>Overall Analytics & Insights</h2>
+      
+      <div id="analytics-content-wrapper">
+          <!-- Key Stats Cards -->
+          <div id="analytics-stats-grid" class="config-grid">
+              <!-- Injected via JS -->
+          </div>
+
+          <!-- Aggregated Subject Mastery -->
+          <div class="report-card">
+              <h3>Subject Mastery</h3>
+              <p style="opacity: 0.7; margin-bottom: 1rem;">Click on a subject to see detailed topic statistics.</p>
+              <div id="subject-mastery-container" class="subject-card-grid"></div>
+          </div>
+      </div>
+  </section>
+
+  <!-- Analytics Detailed Modal -->
+  <div id="analytics-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-subject-title">Subject Analysis</h3>
+        <button id="close-modal-btn" class="close-btn"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div id="modal-body">
+         <!-- Dynamic Content -->
+      </div>
+    </div>
+  </div>
+
+  <section id="performance-report-view" class="hidden">
+    <div class="report-header-actions">
+      <button id="back-to-performance-list" class="back-button" aria-label="Go back">
+        <span class="material-symbols-outlined">arrow_back</span> Back
+      </button>
+      <button id="download-report-btn" class="action-btn save-btn" aria-label="Download this report">
+        <span class="material-symbols-outlined">download</span> Download Report
+      </button>
+    </div>
+
+    <h2 id="performance-report-title">Test Result</h2>
+    
+    <div class="report-card">
+      <h3>Overall Summary</h3>
+      <div id="performance-summary-container" class="results-summary-container"></div>
+    </div>
+
+    <!-- New Tab Navigation -->
+    <div class="report-tabs-container">
+      <button class="report-tab-btn active" data-target="mistakes-view">
+        <span class="material-symbols-outlined">warning</span> Mistake Review
+      </button>
+      <button class="report-tab-btn" data-target="all-questions-view">
+        <span class="material-symbols-outlined">list_alt</span> All Questions
+      </button>
+      <button class="report-tab-btn" data-target="subject-breakdown-view">
+        <span class="material-symbols-outlined">pie_chart</span> Subject Breakdown
+      </button>
+      <button class="report-tab-btn" data-target="time-analysis-view">
+        <span class="material-symbols-outlined">timer</span> Time Analysis
+      </button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div id="report-content-body">
+      <div id="mistakes-view" class="report-tab-pane active">
+        <!-- Content injected via JS -->
+      </div>
+      
+      <div id="all-questions-view" class="report-tab-pane">
+        <!-- Content injected via JS -->
+      </div>
+      
+      <div id="subject-breakdown-view" class="report-tab-pane">
+        <!-- Content injected via JS -->
+      </div>
+      
+      <div id="time-analysis-view" class="report-tab-pane">
+        <!-- Content injected via JS -->
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Template for a question review item -->
+  <template id="question-review-template">
+    <div class="results-detail-item">
+        <div class="question-header">
+            <p><!-- Question Title --></p>
+            <span class="question-meta"><!-- Subject & Topic --></span>
+        </div>
+        <p class="question-text"><!-- Question Content --></p>
+        <ul class="detail-options"><!-- Options List --></ul>
+        <div class="explanation-box">
+            <h4>Explanation</h4>
+            <p class="explanation-text"><!-- Explanation Content --></p>
+        </div>
+        <div class="deeper-analysis-controls">
+          <!-- This button will be added dynamically for incorrect answers -->
+        </div>
+        <div class="deeper-analysis-container hidden">
+            <!-- AI analysis will be injected here -->
+        </div>
+    </div>
+  </template>
+
+
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^0.7.0",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168/build/pdf.mjs",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4"
+  }
+}
+</script>
+  <script type="module" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
