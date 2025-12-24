@@ -2,14 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="theme-color" content="#0D1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>UPSC Test Generator</title>
-  <link rel="stylesheet" href="index.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-<link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="index.css">
 </head>
 <body>
   <main>
@@ -201,9 +203,12 @@ Subject: Science | Topic: Solar System
       <h2 id="attempt-test-title"></h2>
       <div class="timer">
         <span class="material-symbols-outlined">timer</span>
-        Time Left: <span id="time-left">00:00:00</span>
+        <span id="time-left">00:00:00</span>
       </div>
-      <button id="submit-test-btn" class="submit-btn">Finish &amp; Submit</button>
+      <button id="submit-test-btn" class="submit-btn">
+        <span class="material-symbols-outlined" style="font-size: 1.1rem; margin-right: 0.25rem;">check_circle</span>
+        Submit
+      </button>
     </header>
     <div class="test-body">
       <div class="question-area">
@@ -211,34 +216,52 @@ Subject: Science | Topic: Solar System
           <!-- Question will be rendered here -->
         </div>
         <div class="question-nav">
-          <button id="mark-review-btn" class="action-btn">Mark for Review & Next</button>
-          <button id="clear-response-btn" class="action-btn">Clear Response</button>
-          <button id="save-next-btn" class="action-btn save-btn">Save & Next</button>
+          <button id="mark-review-btn" class="action-btn">
+            <span class="material-symbols-outlined">bookmark</span>
+            <span class="btn-text">Review</span>
+          </button>
+          <button id="clear-response-btn" class="action-btn">
+            <span class="material-symbols-outlined">backspace</span>
+            <span class="btn-text">Clear</span>
+          </button>
+          <button id="save-next-btn" class="action-btn save-btn">
+            <span class="material-symbols-outlined">arrow_forward</span>
+            <span class="btn-text">Next</span>
+          </button>
         </div>
       </div>
-      <aside class="sidebar">
-        <div id="question-palette">
-          <!-- Palette will be rendered here -->
-        </div>
-        <div class="status-summary">
-          <h4>Legend</h4>
-          <div class="legend-item"><span class="palette-indicator answered"></span> Answered</div>
-          <div class="legend-item"><span class="palette-indicator not-answered"></span> Not Answered</div>
-          <div class="legend-item"><span class="palette-indicator marked"></span> Marked for Review</div>
-          <div class="legend-item"><span class="palette-indicator marked-answered"></span> Answered & Marked</div>
-          <div class="legend-item"><span class="palette-indicator not-visited"></span> Not Visited</div>
-        </div>
-        <div class="shortcuts-summary">
-            <h4>Shortcuts</h4>
-            <div class="shortcut-item"><span>1, 2, 3, 4</span> Select Option</div>
+      <aside class="sidebar" id="test-sidebar">
+        <button id="toggle-sidebar-btn" class="toggle-sidebar-btn" aria-label="Toggle question palette">
+          <span class="material-symbols-outlined">grid_view</span>
+          <span>Question Palette</span>
+          <span class="material-symbols-outlined toggle-icon">expand_more</span>
+        </button>
+        <div class="sidebar-content">
+          <div id="question-palette">
+            <!-- Palette will be rendered here -->
+          </div>
+          <div class="status-summary">
+            <h4>Legend</h4>
+            <div class="legend-grid">
+              <div class="legend-item"><span class="palette-indicator answered"></span> Answered</div>
+              <div class="legend-item"><span class="palette-indicator not-answered"></span> Not Answered</div>
+              <div class="legend-item"><span class="palette-indicator marked"></span> Marked</div>
+              <div class="legend-item"><span class="palette-indicator marked-answered"></span> Ans & Marked</div>
+              <div class="legend-item"><span class="palette-indicator not-visited"></span> Not Visited</div>
+            </div>
+          </div>
+          <div class="shortcuts-summary">
+            <h4>Keyboard Shortcuts</h4>
+            <div class="shortcut-item"><span>1-4</span> Select Option</div>
             <div class="shortcut-item"><span>Space</span> Save & Next</div>
             <div class="shortcut-item"><span>M</span> Mark for Review</div>
             <div class="shortcut-item"><span>C</span> Clear Response</div>
+          </div>
         </div>
       </aside>
     </div>
-    <button id="back-to-all-tests" class="back-button" aria-label="Go back to all tests list">
-        <span class="material-symbols-outlined">arrow_back</span> Abandon Test
+    <button id="back-to-all-tests" class="back-button abandon-btn" aria-label="Go back to all tests list">
+        <span class="material-symbols-outlined">close</span> Abandon Test
     </button>
   </section>
 
@@ -374,6 +397,5 @@ Subject: Science | Topic: Solar System
 }
 </script>
   <script type="module" src="index.tsx"></script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
