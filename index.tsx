@@ -2,6 +2,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import * as pdfjsLib from 'pdfjs-dist';
 
 // --- Type Definitions ---
+interface User {
+    username: string;
+    password: string;
+    name: string;
+    createdAt: string;
+}
+
 interface Question {
     question: string;
     options: string[];
@@ -43,6 +50,214 @@ type QuestionStatus = 'notVisited' | 'notAnswered' | 'answered' | 'marked' | 'ma
 // This is crucial for performance and to prevent errors.
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
 
+// --- Authentication Elements ---
+const loginScreen = document.getElementById('login-screen');
+const loginForm = document.getElementById('login-form') as HTMLFormElement;
+const registerForm = document.getElementById('register-form') as HTMLFormElement;
+const loginUsernameInput = document.getElementById('login-username') as HTMLInputElement;
+const loginPasswordInput = document.getElementById('login-password') as HTMLInputElement;
+const rememberMeCheckbox = document.getElementById('remember-me') as HTMLInputElement;
+const showRegisterBtn = document.getElementById('show-register-btn');
+const backToLoginBtn = document.getElementById('back-to-login-btn');
+const registerNameInput = document.getElementById('register-name') as HTMLInputElement;
+const registerUsernameInput = document.getElementById('register-username') as HTMLInputElement;
+const registerPasswordInput = document.getElementById('register-password') as HTMLInputElement;
+const registerConfirmInput = document.getElementById('register-confirm') as HTMLInputElement;
+const logoutBtn = document.getElementById('logout-btn');
+const userDisplayName = document.getElementById('user-display-name');
+
+// --- Current User State ---
+let currentUser: User | null = null;
+
+// --- Authentication Functions ---
+function hashPassword(password: string): string {
+    // Simple hash for demo purposes (in production, use proper hashing)
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) {
+        const char = password.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString(36);
+}
+
+function getUsers(): User[] {
+    try {
+        const users = localStorage.getItem('registeredUsers');
+        return users ? JSON.parse(users) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveUsers(users: User[]): void {
+    localStorage.setItem('registeredUsers', JSON.stringify(users));
+}
+
+function registerUser(name: string, username: string, password: string): { success: boolean; message: string } {
+    const users = getUsers();
+    
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+        return { success: false, message: 'Username already exists!' };
+    }
+    
+    if (username.length < 3) {
+        return { success: false, message: 'Username must be at least 3 characters!' };
+    }
+    
+    if (password.length < 4) {
+        return { success: false, message: 'Password must be at least 4 characters!' };
+    }
+    
+    const newUser: User = {
+        username: username.toLowerCase(),
+        password: hashPassword(password),
+        name: name,
+        createdAt: new Date().toISOString()
+    };
+    
+    users.push(newUser);
+    saveUsers(users);
+    
+    return { success: true, message: 'Account created successfully!' };
+}
+
+function authenticateUser(username: string, password: string): { success: boolean; user?: User; message: string } {
+    const users = getUsers();
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    
+    if (!user) {
+        return { success: false, message: 'Invalid username or password!' };
+    }
+    
+    if (user.password !== hashPassword(password)) {
+        return { success: false, message: 'Invalid username or password!' };
+    }
+    
+    return { success: true, user, message: 'Login successful!' };
+}
+
+function loginUser(user: User, remember: boolean): void {
+    currentUser = user;
+    
+    if (remember) {
+        localStorage.setItem('rememberedUser', JSON.stringify({ username: user.username, name: user.name }));
+    } else {
+        localStorage.removeItem('rememberedUser');
+    }
+    
+    sessionStorage.setItem('currentUser', JSON.stringify(user));
+    
+    userDisplayName.textContent = user.name;
+    loginScreen.classList.add('hidden');
+    mainView.classList.remove('hidden');
+}
+
+function logoutUser(): void {
+    currentUser = null;
+    sessionStorage.removeItem('currentUser');
+    
+    mainView.classList.add('hidden');
+    loginScreen.classList.remove('hidden');
+    
+    // Reset forms
+    loginForm.reset();
+    registerForm.reset();
+    showLoginForm();
+}
+
+function checkExistingSession(): void {
+    // Check for active session
+    const sessionUser = sessionStorage.getItem('currentUser');
+    if (sessionUser) {
+        try {
+            const user = JSON.parse(sessionUser);
+            currentUser = user;
+            userDisplayName.textContent = user.name;
+            loginScreen.classList.add('hidden');
+            mainView.classList.remove('hidden');
+            return;
+        } catch {}
+    }
+    
+    // Check for remembered user
+    const remembered = localStorage.getItem('rememberedUser');
+    if (remembered) {
+        try {
+            const { username, name } = JSON.parse(remembered);
+            loginUsernameInput.value = username;
+            rememberMeCheckbox.checked = true;
+        } catch {}
+    }
+}
+
+function showLoginForm(): void {
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+}
+
+function showRegisterForm(): void {
+    loginForm.classList.add('hidden');
+    registerForm.classList.remove('hidden');
+}
+
+// --- Authentication Event Listeners ---
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const username = loginUsernameInput.value.trim();
+    const password = loginPasswordInput.value;
+    const remember = rememberMeCheckbox.checked;
+    
+    const result = authenticateUser(username, password);
+    
+    if (result.success && result.user) {
+        loginUser(result.user, remember);
+    } else {
+        alert(result.message);
+    }
+});
+
+registerForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const name = registerNameInput.value.trim();
+    const username = registerUsernameInput.value.trim();
+    const password = registerPasswordInput.value;
+    const confirm = registerConfirmInput.value;
+    
+    if (password !== confirm) {
+        alert('Passwords do not match!');
+        return;
+    }
+    
+    const result = registerUser(name, username, password);
+    
+    if (result.success) {
+        alert(result.message);
+        // Auto-login after registration
+        const authResult = authenticateUser(username, password);
+        if (authResult.success && authResult.user) {
+            loginUser(authResult.user, false);
+        } else {
+            showLoginForm();
+        }
+    } else {
+        alert(result.message);
+    }
+});
+
+showRegisterBtn.addEventListener('click', showRegisterForm);
+backToLoginBtn.addEventListener('click', showLoginForm);
+logoutBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to logout?')) {
+        logoutUser();
+    }
+});
+
+// Initialize auth check
+checkExistingSession();
+
 // --- DOM Elements ---
 const mainView = document.querySelector('main');
 // View Sections
@@ -61,9 +276,7 @@ const allTestsCard = document.querySelector('.card[aria-labelledby="all-tests-ti
 const performanceCard = document.querySelector('.card[aria-labelledby="performance-title"]');
 const analyticsCard = document.querySelector('.card[aria-labelledby="analytics-title"]');
 
-// Data Control Elements
-const backupDataBtn = document.getElementById('backup-data-btn');
-const restoreDataBtn = document.getElementById('restore-data-btn');
+// Data Control Elements (for restore functionality)
 const restoreFileInput = document.getElementById('restore-file-input') as HTMLInputElement;
 
 // Back Buttons
@@ -197,31 +410,7 @@ function saveToStorage<T>(key: string, value: T): void {
     }
 }
 
-// --- Data Backup & Restore Logic ---
-backupDataBtn.addEventListener('click', () => {
-    const backupData = {
-        tests: getFromStorage('tests', []),
-        performanceHistory: getFromStorage('performanceHistory', [])
-    };
-
-    const jsonString = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const date = new Date().toISOString().slice(0, 10);
-    
-    a.href = url;
-    a.download = `upsc_generator_backup_${date}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-});
-
-restoreDataBtn.addEventListener('click', () => {
-    restoreFileInput.click();
-});
-
+// --- Data Restore Logic ---
 restoreFileInput.addEventListener('change', (event) => {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -1033,17 +1222,65 @@ function startTest(test: Test) {
     showView(testAttemptView);
 }
 
+// Format question text to properly display statement-based questions
+function formatQuestionText(text: string): string {
+    // Check if it's a statement-based question
+    const statementPatterns = [
+        /(?:Consider the following|निम्नलिखित कथनों पर विचार|निम्न में से|Which of the following|Select the correct|Choose the correct)/i,
+        /(?:Statement|कथन)\s*[\(\[]?[IViv1-9]+[\)\]]?\s*[:.-]/gi,
+        /(?:^\s*[IViv]+\s*[\)\.]|^\s*\d+\s*[\)\.])/gm
+    ];
+    
+    const isStatementQuestion = statementPatterns.some(pattern => pattern.test(text));
+    
+    if (!isStatementQuestion) {
+        return `<p class="question-text">${text}</p>`;
+    }
+    
+    // Format statement-based questions
+    let formattedText = text;
+    
+    // Convert numbered statements (1., 2., etc.) to list items
+    formattedText = formattedText.replace(/(\d+)\.\s+/g, '<br><strong>$1.</strong> ');
+    
+    // Convert Roman numeral statements (I., II., etc.) to list items
+    formattedText = formattedText.replace(/\b(I{1,3}|IV|V|VI{1,3}|IX|X)\.\s+/gi, '<br><strong>$1.</strong> ');
+    
+    // Convert Statement I:, Statement II: format
+    formattedText = formattedText.replace(/(Statement|कथन)\s*[\(\[]?([IViv1-9]+)[\)\]]?\s*[:.-]\s*/gi, '<br><strong>Statement $2:</strong> ');
+    
+    // Convert (a), (b), (c), (d) format in question stem
+    formattedText = formattedText.replace(/\(([a-d])\)\s*/gi, '<br><strong>($1)</strong> ');
+    
+    // Convert (1), (2), (3) format
+    formattedText = formattedText.replace(/\((\d+)\)\s*/g, '<br><strong>($1)</strong> ');
+    
+    // Handle "Consider the following statements:" properly
+    formattedText = formattedText.replace(/(Consider the following statements?|निम्नलिखित कथनों पर विचार करें?)\s*:?\s*/gi, '<strong>$1:</strong><br>');
+    
+    // Clean up multiple consecutive line breaks
+    formattedText = formattedText.replace(/(<br\s*\/?>){3,}/gi, '<br><br>');
+    
+    // Remove leading line break if exists
+    formattedText = formattedText.replace(/^<br\s*\/?>/, '');
+    
+    return `<div class="question-text statement-question">${formattedText}</div>`;
+}
+
 function renderQuestionForAttempt() {
     const q = currentTest.questions[currentQuestionIndex];
+    const formattedQuestion = formatQuestionText(q.question);
+    
     questionContentContainer.innerHTML = `
-        <h3>Question ${currentQuestionIndex + 1} of ${currentTest.questions.length}</h3>
-        <p>${q.question}</p>
+        <div class="question-number-badge">Question ${currentQuestionIndex + 1} of ${currentTest.questions.length}</div>
+        ${formattedQuestion}
         <ul class="attempt-options">
             ${q.options.map((opt, index) => `
                 <li class="attempt-option-item">
                     <label>
                         <input type="radio" name="option" value="${index}" ${userAnswers[currentQuestionIndex] === index ? 'checked' : ''}>
-                        <span>${opt}</span>
+                        <span class="option-label">${String.fromCharCode(65 + index)}</span>
+                        <span class="option-text">${opt}</span>
                     </label>
                 </li>
             `).join('')}
