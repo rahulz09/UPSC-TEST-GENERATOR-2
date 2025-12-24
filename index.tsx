@@ -117,6 +117,8 @@ const questionPaletteContainer = document.getElementById('question-palette');
 const saveNextBtn = document.getElementById('save-next-btn') as HTMLButtonElement;
 const markReviewBtn = document.getElementById('mark-review-btn') as HTMLButtonElement;
 const clearResponseBtn = document.getElementById('clear-response-btn') as HTMLButtonElement;
+const testSidebar = document.getElementById('test-sidebar');
+const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
 
 // Performance View Elements
 const performanceContainer = document.getElementById('performance-container');
@@ -345,6 +347,11 @@ analyticsModal.addEventListener('click', (e) => {
     if (e.target === analyticsModal) {
         analyticsModal.classList.add('hidden');
     }
+});
+
+// Sidebar toggle for mobile test attempt view
+toggleSidebarBtn?.addEventListener('click', () => {
+    testSidebar?.classList.toggle('collapsed');
 });
 
 // --- GLOBAL DELEGATED EVENT LISTENERS ---
