@@ -37,13 +37,37 @@ interface TestAttempt {
     fullTest: Test;
 }
 
+interface User {
+    id: string;
+    name: string;
+    email: string;
+}
+
 type QuestionStatus = 'notVisited' | 'notAnswered' | 'answered' | 'marked' | 'markedAndAnswered';
 
+// --- API Configuration ---
+const API_BASE = window.location.origin;
+
+// --- Auth State ---
+let authToken: string | null = localStorage.getItem('authToken');
+let currentUser: User | null = null;
+
 // --- PDF.js Worker Setup ---
-// This is crucial for performance and to prevent errors.
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
 
 // --- DOM Elements ---
+// Auth Elements
+const loginView = document.getElementById('login-view');
+const registerView = document.getElementById('register-view');
+const loginForm = document.getElementById('login-form') as HTMLFormElement;
+const registerForm = document.getElementById('register-form') as HTMLFormElement;
+const loginError = document.getElementById('login-error');
+const registerError = document.getElementById('register-error');
+const showRegisterBtn = document.getElementById('show-register');
+const showLoginBtn = document.getElementById('show-login');
+const logoutBtn = document.getElementById('logout-btn');
+const userNameEl = document.getElementById('user-name');
+
 const mainView = document.querySelector('main');
 // View Sections
 const createTestView = document.getElementById('create-test-view');
@@ -61,10 +85,6 @@ const allTestsCard = document.querySelector('.card[aria-labelledby="all-tests-ti
 const performanceCard = document.querySelector('.card[aria-labelledby="performance-title"]');
 const analyticsCard = document.querySelector('.card[aria-labelledby="analytics-title"]');
 
-// Data Control Elements
-const backupDataBtn = document.getElementById('backup-data-btn');
-const restoreDataBtn = document.getElementById('restore-data-btn');
-const restoreFileInput = document.getElementById('restore-file-input') as HTMLInputElement;
 
 // Back Buttons
 const backToHomeFromCreateBtn = document.getElementById('back-to-home-from-create');
@@ -197,110 +217,213 @@ function saveToStorage<T>(key: string, value: T): void {
     }
 }
 
-// --- Data Backup & Restore Logic ---
-backupDataBtn.addEventListener('click', () => {
-    const backupData = {
-        tests: getFromStorage('tests', []),
-        performanceHistory: getFromStorage('performanceHistory', [])
+// --- API Helper Functions ---
+async function apiRequest(endpoint: string, options: RequestInit = {}) {
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
     };
 
-    const jsonString = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const date = new Date().toISOString().slice(0, 10);
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+    }
+
+    return data;
+}
+
+// --- Auth Functions ---
+async function handleLogin(email: string, password: string) {
+    try {
+        const data = await apiRequest('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password })
+        });
+
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('authToken', data.token);
+        
+        await syncDataFromServer();
+        showAuthenticatedView();
+        
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function handleRegister(name: string, email: string, password: string) {
+    try {
+        const data = await apiRequest('/api/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ name, email, password })
+        });
+
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('authToken', data.token);
+        
+        showAuthenticatedView();
+        
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function verifyToken() {
+    if (!authToken) return false;
     
-    a.href = url;
-    a.download = `upsc_generator_backup_${date}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+        const data = await apiRequest('/api/auth/verify');
+        currentUser = data.user;
+        return true;
+    } catch (error) {
+        authToken = null;
+        localStorage.removeItem('authToken');
+        return false;
+    }
+}
+
+function handleLogout() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('authToken');
+    showLoginView();
+}
+
+async function syncDataFromServer() {
+    try {
+        const data = await apiRequest('/api/sync');
+        if (data.tests) saveToStorage('tests', data.tests);
+        if (data.attempts) saveToStorage('performanceHistory', data.attempts);
+    } catch (error) {
+        console.error('Sync error:', error);
+    }
+}
+
+async function syncTestToServer(test: Test) {
+    try {
+        await apiRequest('/api/tests', {
+            method: 'POST',
+            body: JSON.stringify(test)
+        });
+    } catch (error) {
+        console.error('Failed to sync test:', error);
+    }
+}
+
+async function syncAttemptToServer(attempt: TestAttempt) {
+    try {
+        await apiRequest('/api/attempts', {
+            method: 'POST',
+            body: JSON.stringify(attempt)
+        });
+    } catch (error) {
+        console.error('Failed to sync attempt:', error);
+    }
+}
+
+async function deleteTestFromServer(testId: string) {
+    try {
+        await apiRequest(`/api/tests/${testId}`, { method: 'DELETE' });
+    } catch (error) {
+        console.error('Failed to delete test from server:', error);
+    }
+}
+
+// --- View Management for Auth ---
+function showLoginView() {
+    loginView.classList.remove('hidden');
+    registerView.classList.add('hidden');
+    mainView.classList.add('hidden');
+    // Hide all other views
+    [createTestView, editTestView, allTestsView, testDetailView, testAttemptView, performanceView, performanceReportView, analyticsView].forEach(v => v?.classList.add('hidden'));
+}
+
+function showRegisterView() {
+    loginView.classList.add('hidden');
+    registerView.classList.remove('hidden');
+    mainView.classList.add('hidden');
+}
+
+function showAuthenticatedView() {
+    loginView.classList.add('hidden');
+    registerView.classList.add('hidden');
+    mainView.classList.remove('hidden');
+    
+    if (currentUser && userNameEl) {
+        userNameEl.textContent = currentUser.name;
+    }
+}
+
+// --- Auth Event Listeners ---
+loginForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = (document.getElementById('login-email') as HTMLInputElement).value;
+    const password = (document.getElementById('login-password') as HTMLInputElement).value;
+    const btn = document.getElementById('login-btn') as HTMLButtonElement;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-small"></span> Signing in...';
+    loginError.classList.add('hidden');
+
+    try {
+        await handleLogin(email, password);
+    } catch (error) {
+        loginError.textContent = error.message;
+        loginError.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined">login</span> Sign In';
+    }
 });
 
-restoreDataBtn.addEventListener('click', () => {
-    restoreFileInput.click();
+registerForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = (document.getElementById('register-name') as HTMLInputElement).value;
+    const email = (document.getElementById('register-email') as HTMLInputElement).value;
+    const password = (document.getElementById('register-password') as HTMLInputElement).value;
+    const btn = document.getElementById('register-btn') as HTMLButtonElement;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-small"></span> Creating account...';
+    registerError.classList.add('hidden');
+
+    try {
+        await handleRegister(name, email, password);
+    } catch (error) {
+        registerError.textContent = error.message;
+        registerError.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined">how_to_reg</span> Create Account';
+    }
 });
 
-restoreFileInput.addEventListener('change', (event) => {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const text = e.target?.result as string;
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch (err) {
-                throw new Error("The selected file is not a valid JSON file.");
-            }
-
-            // Case 1: Full Backup (contains 'tests' or 'performanceHistory' arrays)
-            const isBackup = Array.isArray(data.tests) || Array.isArray(data.performanceHistory);
-            
-            // Case 2: Single Test Export (contains 'questions' array and 'name')
-            const isSingleTest = data.name && Array.isArray(data.questions);
-
-            if (isBackup) {
-                if (confirm("This will merge the uploaded backup data with your current data. Duplicates will be handled automatically where possible. Continue?")) {
-                    const currentTests = getFromStorage<Test[]>('tests', []);
-                    const currentHistory = getFromStorage<TestAttempt[]>('performanceHistory', []);
-                    
-                    const newTests = Array.isArray(data.tests) ? [...data.tests, ...currentTests] : currentTests;
-                    const newHistory = Array.isArray(data.performanceHistory) ? [...data.performanceHistory, ...currentHistory] : currentHistory;
-
-                    // De-duplicate tests based on ID
-                    const uniqueTests = Array.from(new Map(newTests.map(item => [item.id, item])).values());
-                    
-                    saveToStorage('tests', uniqueTests);
-                    saveToStorage('performanceHistory', newHistory);
-
-                    alert("Data restored successfully!");
-                    // Reload current view if necessary
-                    if (!allTestsView.classList.contains('hidden')) renderAllTests();
-                    if (!performanceView.classList.contains('hidden')) renderPerformanceHistory();
-                    if (!analyticsView.classList.contains('hidden')) renderAnalyticsDashboard();
-                }
-            } 
-            else if (isSingleTest) {
-                if (confirm(`This file appears to be a single test: "${data.name}". Would you like to import it?`)) {
-                     const newTest: Test = {
-                        ...data,
-                        id: `test_${Date.now()}_restored`, // Ensure unique ID to prevent conflicts
-                        name: `${data.name} (Restored)`
-                    };
-
-                    const tests = getFromStorage<Test[]>('tests', []);
-                    tests.unshift(newTest);
-                    saveToStorage('tests', tests);
-
-                    alert(`Test "${data.name}" imported successfully!`);
-                    if (!allTestsView.classList.contains('hidden')) renderAllTests();
-                }
-            } 
-            else {
-                throw new Error("Invalid file format. Please upload a valid Backup JSON or a single Test JSON.");
-            }
-
-        } catch (error) {
-            console.error("Error restoring data:", error);
-            alert(`Failed to restore data. ${error.message}`);
-        } finally {
-            input.value = ''; // Reset input
-        }
-    };
-    reader.readAsText(file);
-});
+showRegisterBtn?.addEventListener('click', showRegisterView);
+showLoginBtn?.addEventListener('click', showLoginView);
+logoutBtn?.addEventListener('click', handleLogout);
 
 
 // --- View Management ---
-const views = [mainView, createTestView, editTestView, allTestsView, testDetailView, testAttemptView, performanceView, performanceReportView, analyticsView];
+const appViews = [mainView, createTestView, editTestView, allTestsView, testDetailView, testAttemptView, performanceView, performanceReportView, analyticsView];
 
 function showView(viewToShow) {
-    views.forEach(view => {
+    // Keep auth views hidden when showing app views
+    loginView?.classList.add('hidden');
+    registerView?.classList.add('hidden');
+    
+    appViews.forEach(view => {
         if (view === viewToShow) {
             view.classList.remove('hidden');
         } else {
@@ -786,7 +909,7 @@ addQuestionBtn.addEventListener('click', () => {
 });
 
 
-saveTestBtn.addEventListener('click', () => {
+saveTestBtn.addEventListener('click', async () => {
     if (!currentTest) return;
     syncCurrentTestFromDOM();
 
@@ -797,13 +920,16 @@ saveTestBtn.addEventListener('click', () => {
     
     if (existingIndex > -1) {
         tests[existingIndex] = currentTest;
-        alert('Test updated successfully!');
     } else {
         tests.unshift(currentTest);
-        alert('Test created successfully!');
     }
     
     saveToStorage('tests', tests);
+    
+    // Sync to server
+    await syncTestToServer(currentTest);
+    
+    alert(existingIndex > -1 ? 'Test updated successfully!' : 'Test created successfully!');
     renderAllTests();
     showView(allTestsView);
 });
@@ -869,11 +995,15 @@ function handleDownloadTest(test: Test) {
     URL.revokeObjectURL(url);
 }
 
-function handleDeleteTest(testId: string) {
+async function handleDeleteTest(testId: string) {
     if (confirm("Are you sure you want to delete this test?")) {
         let tests = getFromStorage<Test[]>('tests', []);
         tests = tests.filter(t => t.id !== testId);
         saveToStorage('tests', tests);
+        
+        // Delete from server
+        await deleteTestFromServer(testId);
+        
         renderAllTests(); // Re-render the list
     }
 }
@@ -944,7 +1074,7 @@ function handleImportTest(event: Event) {
 importTestBtn.addEventListener('click', () => importTestInput.click());
 importTestInput.addEventListener('change', handleImportTest);
 
-allTestsContainer.addEventListener('click', e => {
+allTestsContainer.addEventListener('click', async e => {
     const target = e.target as HTMLElement;
     const testItem = target.closest('.saved-test-item') as HTMLElement;
     if (!testItem) return;
@@ -960,7 +1090,7 @@ allTestsContainer.addEventListener('click', e => {
     } else if (target.closest('.download-test-btn')) {
         handleDownloadTest(test);
     } else if (target.closest('.delete-btn')) {
-        handleDeleteTest(testId);
+        await handleDeleteTest(testId);
     } else if (target.closest('.edit-btn')) {
         handleEditTest(test);
     } else {
@@ -995,7 +1125,7 @@ function renderTestDetail(test: Test) {
     `).join('');
 }
 
-testDetailActions.addEventListener('click', e => {
+testDetailActions.addEventListener('click', async e => {
     if (!currentTest) return;
     const target = e.target as HTMLElement;
 
@@ -1004,9 +1134,14 @@ testDetailActions.addEventListener('click', e => {
     }
     if (target.closest('#delete-test-btn')) {
         if (confirm(`Are you sure you want to delete the test "${currentTest.name}"? This action cannot be undone.`)) {
+            const testId = currentTest.id;
             let tests = getFromStorage<Test[]>('tests', []);
-            tests = tests.filter(t => t.id !== currentTest.id);
+            tests = tests.filter(t => t.id !== testId);
             saveToStorage('tests', tests);
+            
+            // Delete from server
+            await deleteTestFromServer(testId);
+            
             alert('Test deleted.');
             renderAllTests();
             showView(allTestsView);
@@ -1033,17 +1168,50 @@ function startTest(test: Test) {
     showView(testAttemptView);
 }
 
+function formatQuestionText(text: string): string {
+    // Convert newlines to <br> for proper paragraph display
+    // Also handle numbered statements like "1.", "2." etc.
+    let formatted = text
+        .replace(/\n\n/g, '</p><p class="question-paragraph">')
+        .replace(/\n/g, '<br>')
+        // Handle statement patterns like "Statement 1:", "Statement I:", "(1)", "(a)" etc.
+        .replace(/(?:Statement\s*(?:\d+|[IVX]+|[A-Za-z]))\s*[:.-]/gi, '<strong>$&</strong>')
+        .replace(/(?:\(\s*(?:\d+|[a-z]|[ivx]+)\s*\))/gi, '<strong>$&</strong>')
+        // Handle "Consider the following" type questions
+        .replace(/(Consider the following[^:]*:)/gi, '<strong>$1</strong>')
+        // Handle assertion-reason patterns
+        .replace(/(Assertion\s*\([A-Z]\)[:\s]*)/gi, '<strong>$1</strong>')
+        .replace(/(Reason\s*\([A-Z]\)[:\s]*)/gi, '<strong>$1</strong>');
+    
+    return `<p class="question-paragraph">${formatted}</p>`;
+}
+
+function formatOptionText(text: string): string {
+    // Handle options that have sub-parts like "(a) and (b) only"
+    return text
+        .replace(/(?:\(\s*(?:\d+|[a-z]|[ivx]+)\s*\))/gi, '<strong>$&</strong>')
+        .replace(/\b(only|Both|Neither|All|None)\b/gi, '<em>$1</em>');
+}
+
 function renderQuestionForAttempt() {
     const q = currentTest.questions[currentQuestionIndex];
+    const formattedQuestion = formatQuestionText(q.question);
+    
     questionContentContainer.innerHTML = `
-        <h3>Question ${currentQuestionIndex + 1} of ${currentTest.questions.length}</h3>
-        <p>${q.question}</p>
+        <div class="question-header-attempt">
+            <span class="question-number">Question ${currentQuestionIndex + 1} of ${currentTest.questions.length}</span>
+            <span class="question-subject-tag">${q.subject || 'General'}</span>
+        </div>
+        <div class="question-text-container">
+            ${formattedQuestion}
+        </div>
         <ul class="attempt-options">
             ${q.options.map((opt, index) => `
                 <li class="attempt-option-item">
                     <label>
                         <input type="radio" name="option" value="${index}" ${userAnswers[currentQuestionIndex] === index ? 'checked' : ''}>
-                        <span>${opt}</span>
+                        <span class="option-label">${String.fromCharCode(65 + index)}.</span>
+                        <span class="option-text">${formatOptionText(opt)}</span>
                     </label>
                 </li>
             `).join('')}
@@ -1134,7 +1302,7 @@ markReviewBtn.addEventListener('click', () => {
     navigateToQuestion(currentQuestionIndex + 1);
 });
 
-function handleSubmitTest() {
+async function handleSubmitTest() {
     try {
         stopTimer();
         
@@ -1192,6 +1360,9 @@ function handleSubmitTest() {
         const history = getFromStorage<TestAttempt[]>('performanceHistory', []);
         history.unshift(attempt);
         saveToStorage('performanceHistory', history);
+        
+        // Sync to server
+        await syncAttemptToServer(attempt);
 
         currentTest = null; // Clear the current test state
         
@@ -1988,3 +2159,22 @@ function openSubjectModal(subject: string) {
 
     analyticsModal.classList.remove('hidden');
 }
+
+// --- App Initialization ---
+async function initializeApp() {
+    // Check if user has valid token
+    if (authToken) {
+        const isValid = await verifyToken();
+        if (isValid) {
+            await syncDataFromServer();
+            showAuthenticatedView();
+        } else {
+            showLoginView();
+        }
+    } else {
+        showLoginView();
+    }
+}
+
+// Initialize the app
+initializeApp();
