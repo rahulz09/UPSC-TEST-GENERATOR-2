@@ -601,6 +601,16 @@ document.addEventListener('keydown', (e) => {
             e.preventDefault();
             saveNextBtn.click();
             break;
+            
+        case 'ArrowRight':
+            e.preventDefault();
+            saveNextBtn.click();
+            break;
+            
+        case 'ArrowLeft':
+            e.preventDefault();
+            prevBtn.click();
+            break;
 
         case 'm':
         case 'M':
@@ -1343,16 +1353,17 @@ function navigateToQuestion(newIndex: number) {
 
     saveCurrentAnswer(); // Save answer for the outgoing question
 
-    // Handle navigation limits
+    // Handle navigation limits - if at last question, stay there silently (no popup)
     if (newIndex >= currentTest.questions.length) {
         updatePalette();
-        alert("You have reached the last question.");
-        questionStartTime = Date.now(); // Reset timer to stop accumulating time on the last question
+        questionStartTime = Date.now();
+        // Show a subtle toast instead of alert
+        showToast("Last question reached. Click Submit when ready.", "info");
         return;
     }
     if (newIndex < 0) {
-        // This case shouldn't happen with current UI, but it's good practice
         questionStartTime = Date.now();
+        showToast("You're at the first question.", "info");
         return;
     }
 
@@ -1368,11 +1379,42 @@ function navigateToQuestion(newIndex: number) {
     updatePalette();
 }
 
+// Toast notification system
+function showToast(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
+    // Remove any existing toast
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) existingToast.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.innerHTML = `
+        <span class="material-symbols-outlined">${type === 'info' ? 'info' : type === 'success' ? 'check_circle' : type === 'warning' ? 'warning' : 'error'}</span>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Remove after 2.5 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
+}
+
+const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
+
 saveNextBtn.addEventListener('click', () => navigateToQuestion(currentQuestionIndex + 1));
+
+prevBtn.addEventListener('click', () => navigateToQuestion(currentQuestionIndex - 1));
 
 clearResponseBtn.addEventListener('click', () => {
     const selectedOption = document.querySelector('input[name="option"]:checked') as HTMLInputElement;
-    if (selectedOption) selectedOption.checked = false;
+    if (selectedOption) {
+        selectedOption.checked = false;
+        showToast("Response cleared", "info");
+    }
 });
 
 markReviewBtn.addEventListener('click', () => {
@@ -1552,20 +1594,25 @@ function renderPerformanceReport(attempt: TestAttempt, fromHistory: boolean = tr
     
     const attemptedCount = attempt.correctAnswers + attempt.incorrectAnswers;
     const accuracy = attemptedCount > 0 ? (attempt.correctAnswers / attemptedCount) * 100 : 0;
+    const avgTimePerQ = attempt.totalQuestions > 0 ? (attempt.timeTaken / attempt.totalQuestions) : 0;
     
-    // 1. Render Summary Cards
+    // Calculate rank estimate
+    const rankCategory = attempt.score >= 80 ? 'Excellent' : attempt.score >= 60 ? 'Good' : attempt.score >= 40 ? 'Average' : 'Needs Work';
+    const rankColor = attempt.score >= 80 ? 'var(--success-color)' : attempt.score >= 60 ? 'var(--info-color)' : attempt.score >= 40 ? 'var(--warning-color)' : 'var(--danger-color)';
+    
+    // 1. Render Summary Cards with enhanced info
     performanceSummaryContainer.innerHTML = `
         <div class="summary-card score">
             <div class="summary-icon"><span class="material-symbols-outlined">percent</span></div>
             <div class="summary-data">
-                <div class="summary-value">${attempt.score.toFixed(2)}%</div>
+                <div class="summary-value">${attempt.score.toFixed(1)}%</div>
                 <div class="summary-label">Score</div>
             </div>
         </div>
          <div class="summary-card accuracy">
             <div class="summary-icon"><span class="material-symbols-outlined">track_changes</span></div>
             <div class="summary-data">
-                <div class="summary-value">${accuracy.toFixed(2)}%</div>
+                <div class="summary-value">${accuracy.toFixed(1)}%</div>
                 <div class="summary-label">Accuracy</div>
             </div>
         </div>
@@ -1597,13 +1644,30 @@ function renderPerformanceReport(attempt: TestAttempt, fromHistory: boolean = tr
                  <div class="summary-label">Time Taken</div>
              </div>
         </div>
+        <div class="summary-card rank" style="--accent-color: ${rankColor}">
+             <div class="summary-icon"><span class="material-symbols-outlined">military_tech</span></div>
+             <div class="summary-data">
+                 <div class="summary-value" style="color: ${rankColor}; font-size: 1rem;">${rankCategory}</div>
+                 <div class="summary-label">Performance</div>
+             </div>
+        </div>
+        <div class="summary-card avgtime">
+             <div class="summary-icon"><span class="material-symbols-outlined">speed</span></div>
+             <div class="summary-data">
+                 <div class="summary-value">${avgTimePerQ.toFixed(1)}s</div>
+                 <div class="summary-label">Avg/Question</div>
+             </div>
+        </div>
     `;
 
     // 2. Render content into all containers (initially hidden by CSS except active one)
     renderTimeAnalysisCharts(attempt);
     renderSubjectBreakdown(attempt);
+    renderTopicWiseAnalysis(attempt);
+    renderBiasAnalysis(attempt);
     renderMistakesReview(attempt);
     renderAllQuestionsReview(attempt);
+    renderDifficultyAnalysis(attempt);
     
     // 3. Reset Tab State (Default to Mistake Review)
     const reportTabs = document.querySelectorAll('.report-tab-btn');
@@ -1723,12 +1787,41 @@ function handleDownloadReport(attempt: TestAttempt) {
 }
 
 function renderTimeAnalysisCharts(attempt: TestAttempt) {
+    const avgTime = attempt.timePerQuestion.reduce((a, b) => a + b, 0) / attempt.timePerQuestion.length;
+    const maxTime = Math.max(...attempt.timePerQuestion, 1);
+    const minTime = Math.min(...attempt.timePerQuestion);
+    const medianTime = [...attempt.timePerQuestion].sort((a, b) => a - b)[Math.floor(attempt.timePerQuestion.length / 2)];
+    
+    // Time Statistics Cards
+    let timeStatsHTML = `
+        <div class="time-stats-grid">
+            <div class="time-stat-card">
+                <span class="material-symbols-outlined">avg_time</span>
+                <div class="time-stat-value">${avgTime.toFixed(1)}s</div>
+                <div class="time-stat-label">Average</div>
+            </div>
+            <div class="time-stat-card">
+                <span class="material-symbols-outlined">arrow_upward</span>
+                <div class="time-stat-value">${maxTime.toFixed(1)}s</div>
+                <div class="time-stat-label">Maximum</div>
+            </div>
+            <div class="time-stat-card">
+                <span class="material-symbols-outlined">arrow_downward</span>
+                <div class="time-stat-value">${minTime.toFixed(1)}s</div>
+                <div class="time-stat-label">Minimum</div>
+            </div>
+            <div class="time-stat-card">
+                <span class="material-symbols-outlined">vertical_align_center</span>
+                <div class="time-stat-value">${medianTime.toFixed(1)}s</div>
+                <div class="time-stat-label">Median</div>
+            </div>
+        </div>
+    `;
+    
     // Question Time Chart with Toggle Button
-    let perQuestionChartHTML = '<h4>Time Spent Per Question</h4><div class="chart-legend"><span class="legend-item"><span class="palette-indicator answered"></span> Correct</span><span class="legend-item"><span class="palette-indicator not-answered"></span> Incorrect</span><span class="legend-item"><span class="palette-indicator not-visited"></span> Unanswered</span></div>';
+    let perQuestionChartHTML = '<h4 style="margin-top: 1.5rem;">Time Spent Per Question</h4><div class="chart-legend"><span class="legend-item"><span class="palette-indicator answered"></span> Correct</span><span class="legend-item"><span class="palette-indicator not-answered"></span> Incorrect</span><span class="legend-item"><span class="palette-indicator not-visited"></span> Unanswered</span></div>';
     
     perQuestionChartHTML += '<div id="q-chart-container" class="chart question-time-chart">';
-    
-    const maxTime = Math.max(...attempt.timePerQuestion, 1); // Use 1s minimum to avoid division by zero
 
     attempt.timePerQuestion.forEach((time, index) => {
         const q = attempt.fullTest.questions[index];
@@ -1758,39 +1851,73 @@ function renderTimeAnalysisCharts(attempt: TestAttempt) {
     perQuestionChartHTML += `<button id="expand-chart-btn" class="expand-chart-btn">Show Full Chart (All Questions)</button>`;
 
     // Subject Time Analysis
-    const subjectTimes: { [key: string]: { totalTime: number; count: number } } = {};
+    const subjectTimes: { [key: string]: { totalTime: number; count: number; correct: number } } = {};
     attempt.fullTest.questions.forEach((q, i) => {
         const subject = q.subject || 'Uncategorized';
         if (!subjectTimes[subject]) {
-            subjectTimes[subject] = { totalTime: 0, count: 0 };
+            subjectTimes[subject] = { totalTime: 0, count: 0, correct: 0 };
         }
         subjectTimes[subject].totalTime += attempt.timePerQuestion[i];
         subjectTimes[subject].count++;
+        if (attempt.userAnswers[i] === q.answer) {
+            subjectTimes[subject].correct++;
+        }
     });
 
     const subjectAvgs = Object.entries(subjectTimes).map(([subject, data]) => ({
         subject,
         avgTime: data.totalTime / data.count,
+        accuracy: (data.correct / data.count) * 100
     }));
     
     const maxAvgTime = Math.max(...subjectAvgs.map(s => s.avgTime), 1);
     
     let perSubjectChartHTML = '<br><br><h4>Average Time Per Subject</h4><div class="chart subject-time-chart">';
-    subjectAvgs.forEach(({ subject, avgTime }) => {
+    subjectAvgs.forEach(({ subject, avgTime, accuracy }) => {
         const barWidth = (avgTime / maxAvgTime) * 100;
+        const barColor = accuracy >= 70 ? 'var(--success-color)' : accuracy >= 50 ? 'var(--warning-color)' : 'var(--danger-color)';
         perSubjectChartHTML += `
             <div class="chart-row">
                 <div class="chart-label">${subject}</div>
                 <div class="chart-bar-container">
-                    <div class="chart-bar" style="width: ${barWidth}%" title="Avg Time: ${avgTime.toFixed(1)}s"></div>
+                    <div class="chart-bar" style="width: ${barWidth}%; background: ${barColor}" title="Avg Time: ${avgTime.toFixed(1)}s | Accuracy: ${accuracy.toFixed(0)}%"></div>
                 </div>
                 <div class="chart-value">${avgTime.toFixed(1)}s</div>
             </div>
         `;
     });
     perSubjectChartHTML += '</div>';
+    
+    // Time Distribution Analysis
+    let timeDistHTML = `
+        <h4 style="margin-top: 2rem;">Time Distribution Insights</h4>
+        <div class="time-distribution-grid">
+    `;
+    
+    // Categorize by time ranges
+    const quick = attempt.timePerQuestion.filter(t => t < avgTime * 0.5).length;
+    const normal = attempt.timePerQuestion.filter(t => t >= avgTime * 0.5 && t <= avgTime * 1.5).length;
+    const slow = attempt.timePerQuestion.filter(t => t > avgTime * 1.5).length;
+    
+    const quickPct = (quick / attempt.totalQuestions) * 100;
+    const normalPct = (normal / attempt.totalQuestions) * 100;
+    const slowPct = (slow / attempt.totalQuestions) * 100;
+    
+    timeDistHTML += `
+            <div class="time-dist-bar">
+                <div class="dist-segment quick" style="width: ${quickPct}%"></div>
+                <div class="dist-segment normal" style="width: ${normalPct}%"></div>
+                <div class="dist-segment slow" style="width: ${slowPct}%"></div>
+            </div>
+            <div class="time-dist-legend">
+                <div class="dist-legend-item"><span class="dist-dot quick"></span> Quick (< ${(avgTime * 0.5).toFixed(0)}s): ${quick}</div>
+                <div class="dist-legend-item"><span class="dist-dot normal"></span> Normal: ${normal}</div>
+                <div class="dist-legend-item"><span class="dist-dot slow"></span> Slow (> ${(avgTime * 1.5).toFixed(0)}s): ${slow}</div>
+            </div>
+        </div>
+    `;
 
-    timeAnalysisContainer.innerHTML = perQuestionChartHTML + perSubjectChartHTML;
+    timeAnalysisContainer.innerHTML = timeStatsHTML + perQuestionChartHTML + perSubjectChartHTML + timeDistHTML;
 
     // Attach listener for Expand Button
     document.getElementById('expand-chart-btn')?.addEventListener('click', (e) => {
@@ -1809,30 +1936,41 @@ function renderTimeAnalysisCharts(attempt: TestAttempt) {
 
 
 function renderSubjectBreakdown(attempt: TestAttempt) {
-    const subjectStats: { [key: string]: { correct: number, total: number, topics: { [key: string]: { correct: number, total: number } } } } = {};
+    const subjectStats: { [key: string]: { correct: number, total: number, incorrect: number, unanswered: number, totalTime: number, topics: { [key: string]: { correct: number, total: number } } } } = {};
     
     attempt.fullTest.questions.forEach((q, i) => {
         const subject = q.subject || 'Uncategorized';
         const topic = q.topic || 'General';
 
         if (!subjectStats[subject]) {
-            subjectStats[subject] = { correct: 0, total: 0, topics: {} };
+            subjectStats[subject] = { correct: 0, total: 0, incorrect: 0, unanswered: 0, totalTime: 0, topics: {} };
         }
         if (!subjectStats[subject].topics[topic]) {
             subjectStats[subject].topics[topic] = { correct: 0, total: 0 };
         }
 
         subjectStats[subject].total++;
+        subjectStats[subject].totalTime += attempt.timePerQuestion[i] || 0;
         subjectStats[subject].topics[topic].total++;
 
-        if (attempt.userAnswers[i] === q.answer) {
+        if (attempt.userAnswers[i] === null) {
+            subjectStats[subject].unanswered++;
+        } else if (attempt.userAnswers[i] === q.answer) {
             subjectStats[subject].correct++;
             subjectStats[subject].topics[topic].correct++;
+        } else {
+            subjectStats[subject].incorrect++;
         }
     });
 
+    // Create visual pie chart representation for each subject
     subjectBreakdownContainer.innerHTML = Object.entries(subjectStats).map(([subject, stats]) => {
         const accuracy = stats.total > 0 ? (stats.correct / stats.total) * 100 : 0;
+        const avgTime = stats.total > 0 ? (stats.totalTime / stats.total) : 0;
+        const correctPct = (stats.correct / stats.total) * 100;
+        const incorrectPct = (stats.incorrect / stats.total) * 100;
+        const unansweredPct = (stats.unanswered / stats.total) * 100;
+        
         return `
             <details class="subject-breakdown-item">
                 <summary class="subject-header">
@@ -1842,6 +1980,26 @@ function renderSubjectBreakdown(attempt: TestAttempt) {
                         <span class="material-symbols-outlined expand-icon">expand_more</span>
                     </div>
                 </summary>
+                <div class="subject-stats-visual">
+                    <div class="mini-donut-chart">
+                        <svg viewBox="0 0 36 36" class="donut-svg">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--card-border-color)" stroke-width="3"></circle>
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--success-color)" stroke-width="3" 
+                                stroke-dasharray="${correctPct} ${100 - correctPct}" 
+                                stroke-dashoffset="25"></circle>
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--danger-color)" stroke-width="3" 
+                                stroke-dasharray="${incorrectPct} ${100 - incorrectPct}" 
+                                stroke-dashoffset="${25 - correctPct}"></circle>
+                        </svg>
+                        <div class="donut-center">${stats.correct}/${stats.total}</div>
+                    </div>
+                    <div class="subject-detail-stats">
+                        <div class="stat-row-mini"><span class="dot-success"></span> Correct: ${stats.correct}</div>
+                        <div class="stat-row-mini"><span class="dot-danger"></span> Incorrect: ${stats.incorrect}</div>
+                        <div class="stat-row-mini"><span class="dot-muted"></span> Unanswered: ${stats.unanswered}</div>
+                        <div class="stat-row-mini"><span class="material-symbols-outlined" style="font-size: 0.8rem;">schedule</span> Avg: ${avgTime.toFixed(1)}s</div>
+                    </div>
+                </div>
                 <div class="progress-bar">
                     <div class="progress-bar-fill" style="width: ${accuracy}%; background-color: ${accuracy > 60 ? 'var(--success-color)' : accuracy > 30 ? 'var(--warning-color)' : 'var(--danger-color)'};"></div>
                 </div>
@@ -1859,6 +2017,337 @@ function renderSubjectBreakdown(attempt: TestAttempt) {
             </details>
         `;
     }).join('');
+}
+
+// Topic-wise analysis with graph
+function renderTopicWiseAnalysis(attempt: TestAttempt) {
+    const topicWiseContainer = document.getElementById('topic-wise-view');
+    if (!topicWiseContainer) return;
+    
+    const topicStats: { [key: string]: { correct: number, total: number, subject: string, avgTime: number, totalTime: number } } = {};
+    
+    attempt.fullTest.questions.forEach((q, i) => {
+        const topic = q.topic || 'General';
+        const subject = q.subject || 'Uncategorized';
+        
+        if (!topicStats[topic]) {
+            topicStats[topic] = { correct: 0, total: 0, subject, avgTime: 0, totalTime: 0 };
+        }
+        
+        topicStats[topic].total++;
+        topicStats[topic].totalTime += attempt.timePerQuestion[i] || 0;
+        
+        if (attempt.userAnswers[i] === q.answer) {
+            topicStats[topic].correct++;
+        }
+    });
+    
+    // Calculate average time
+    Object.values(topicStats).forEach(stat => {
+        stat.avgTime = stat.total > 0 ? stat.totalTime / stat.total : 0;
+    });
+    
+    // Sort by accuracy
+    const sortedTopics = Object.entries(topicStats)
+        .map(([topic, stats]) => ({
+            topic,
+            ...stats,
+            accuracy: stats.total > 0 ? (stats.correct / stats.total) * 100 : 0
+        }))
+        .sort((a, b) => b.accuracy - a.accuracy);
+    
+    // Find strongest and weakest topics
+    const strongTopics = sortedTopics.filter(t => t.accuracy >= 70).slice(0, 3);
+    const weakTopics = sortedTopics.filter(t => t.accuracy < 50).slice(-3).reverse();
+    
+    topicWiseContainer.innerHTML = `
+        <div class="topic-insights-grid">
+            <div class="insight-card strength">
+                <h4><span class="material-symbols-outlined">trending_up</span> Strong Topics</h4>
+                ${strongTopics.length > 0 ? strongTopics.map(t => `
+                    <div class="insight-item">
+                        <span class="topic-name">${t.topic}</span>
+                        <span class="topic-score" style="color: var(--success-color)">${t.accuracy.toFixed(0)}%</span>
+                    </div>
+                `).join('') : '<p class="no-data">No strong topics identified yet</p>'}
+            </div>
+            <div class="insight-card weakness">
+                <h4><span class="material-symbols-outlined">trending_down</span> Need Improvement</h4>
+                ${weakTopics.length > 0 ? weakTopics.map(t => `
+                    <div class="insight-item">
+                        <span class="topic-name">${t.topic}</span>
+                        <span class="topic-score" style="color: var(--danger-color)">${t.accuracy.toFixed(0)}%</span>
+                    </div>
+                `).join('') : '<p class="no-data">Great! No weak topics found</p>'}
+            </div>
+        </div>
+        
+        <h4 style="margin-top: 1.5rem;">All Topics Performance</h4>
+        <div class="topic-chart-container">
+            ${sortedTopics.map(t => {
+                const barColor = t.accuracy >= 70 ? 'var(--success-color)' : t.accuracy >= 50 ? 'var(--warning-color)' : 'var(--danger-color)';
+                return `
+                    <div class="topic-chart-row">
+                        <div class="topic-chart-label">
+                            <span class="topic-name">${t.topic}</span>
+                            <span class="topic-subject">${t.subject}</span>
+                        </div>
+                        <div class="topic-chart-bar-container">
+                            <div class="topic-chart-bar" style="width: ${t.accuracy}%; background: ${barColor}"></div>
+                            <span class="topic-chart-value">${t.correct}/${t.total} (${t.accuracy.toFixed(0)}%)</span>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+// Bias Analysis - Detect if user tends to mark same options repeatedly
+function renderBiasAnalysis(attempt: TestAttempt) {
+    const biasContainer = document.getElementById('bias-analysis-view');
+    if (!biasContainer) return;
+    
+    // Count option selections
+    const optionCounts = [0, 0, 0, 0]; // A, B, C, D
+    const correctOptionCounts = [0, 0, 0, 0];
+    let consecutiveSame = 0;
+    let maxConsecutive = 0;
+    let prevAnswer: number | null = null;
+    let totalAnswered = 0;
+    
+    // Track pattern of answers
+    const answerPattern: string[] = [];
+    
+    attempt.userAnswers.forEach((answer, i) => {
+        if (answer !== null) {
+            optionCounts[answer]++;
+            totalAnswered++;
+            answerPattern.push(String.fromCharCode(65 + answer));
+            
+            // Track consecutive same answers
+            if (answer === prevAnswer) {
+                consecutiveSame++;
+                maxConsecutive = Math.max(maxConsecutive, consecutiveSame);
+            } else {
+                consecutiveSame = 1;
+            }
+            prevAnswer = answer;
+        }
+        
+        // Track correct answer distribution
+        const correctAns = attempt.fullTest.questions[i].answer;
+        correctOptionCounts[correctAns]++;
+    });
+    
+    // Calculate bias metrics
+    const expectedPct = 25; // Expected if random
+    const optionPcts = optionCounts.map(c => totalAnswered > 0 ? (c / totalAnswered) * 100 : 0);
+    const correctPcts = correctOptionCounts.map(c => (c / attempt.totalQuestions) * 100);
+    
+    // Detect bias - if any option is selected significantly more than 30%
+    const biasedOptions = optionPcts
+        .map((pct, i) => ({ option: String.fromCharCode(65 + i), pct, count: optionCounts[i] }))
+        .filter(o => o.pct > 35);
+    
+    const hasBias = biasedOptions.length > 0;
+    const avoidedOptions = optionPcts
+        .map((pct, i) => ({ option: String.fromCharCode(65 + i), pct, count: optionCounts[i] }))
+        .filter(o => o.pct < 15 && totalAnswered > 10);
+    
+    // Calculate change rate (how often user changes option type)
+    let changeCount = 0;
+    for (let i = 1; i < attempt.userAnswers.length; i++) {
+        if (attempt.userAnswers[i] !== null && attempt.userAnswers[i-1] !== null && 
+            attempt.userAnswers[i] !== attempt.userAnswers[i-1]) {
+            changeCount++;
+        }
+    }
+    const changeRate = totalAnswered > 1 ? (changeCount / (totalAnswered - 1)) * 100 : 0;
+    
+    // Generate bias report
+    let biasReport = '';
+    let biasLevel = 'low';
+    let biasColor = 'var(--success-color)';
+    
+    if (hasBias) {
+        biasLevel = biasedOptions[0].pct > 45 ? 'high' : 'moderate';
+        biasColor = biasLevel === 'high' ? 'var(--danger-color)' : 'var(--warning-color)';
+        biasReport = `You tend to select option <strong>${biasedOptions[0].option}</strong> more frequently (${biasedOptions[0].pct.toFixed(1)}% of answers).`;
+    } else {
+        biasReport = 'Your answer distribution is well-balanced across all options.';
+    }
+    
+    if (maxConsecutive >= 4) {
+        biasReport += ` You selected the same option <strong>${maxConsecutive} times in a row</strong>, which might indicate guessing.`;
+    }
+    
+    biasContainer.innerHTML = `
+        <div class="bias-summary-card" style="border-left-color: ${biasColor}">
+            <div class="bias-header">
+                <span class="material-symbols-outlined">${hasBias ? 'psychology_alt' : 'verified'}</span>
+                <h4>Answer Bias: <span style="color: ${biasColor}">${biasLevel.charAt(0).toUpperCase() + biasLevel.slice(1)}</span></h4>
+            </div>
+            <p class="bias-description">${biasReport}</p>
+        </div>
+        
+        <div class="bias-charts-grid">
+            <div class="bias-chart-card">
+                <h5>Your Answer Distribution</h5>
+                <div class="option-distribution">
+                    ${['A', 'B', 'C', 'D'].map((opt, i) => `
+                        <div class="option-dist-item">
+                            <div class="option-label-box ${optionPcts[i] > 35 ? 'biased' : ''}">${opt}</div>
+                            <div class="option-bar-container">
+                                <div class="option-bar user-bar" style="width: ${optionPcts[i]}%; background: ${optionPcts[i] > 35 ? 'var(--warning-color)' : 'var(--primary-color)'}"></div>
+                            </div>
+                            <span class="option-pct">${optionPcts[i].toFixed(1)}%</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="bias-chart-card">
+                <h5>Correct Answer Distribution</h5>
+                <div class="option-distribution">
+                    ${['A', 'B', 'C', 'D'].map((opt, i) => `
+                        <div class="option-dist-item">
+                            <div class="option-label-box correct-dist">${opt}</div>
+                            <div class="option-bar-container">
+                                <div class="option-bar correct-bar" style="width: ${correctPcts[i]}%; background: var(--success-color)"></div>
+                            </div>
+                            <span class="option-pct">${correctPcts[i].toFixed(1)}%</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+        
+        <div class="bias-stats-row">
+            <div class="bias-stat">
+                <span class="bias-stat-value">${changeRate.toFixed(0)}%</span>
+                <span class="bias-stat-label">Answer Variety</span>
+            </div>
+            <div class="bias-stat">
+                <span class="bias-stat-value">${maxConsecutive}</span>
+                <span class="bias-stat-label">Max Consecutive Same</span>
+            </div>
+            <div class="bias-stat">
+                <span class="bias-stat-value">${avoidedOptions.length > 0 ? avoidedOptions.map(o => o.option).join(', ') : 'None'}</span>
+                <span class="bias-stat-label">Avoided Options</span>
+            </div>
+        </div>
+        
+        <div class="bias-tip">
+            <span class="material-symbols-outlined">lightbulb</span>
+            <p><strong>Pro Tip:</strong> In competitive exams, correct answers are usually evenly distributed. If you find yourself always avoiding an option, reconsider those questions!</p>
+        </div>
+    `;
+}
+
+// Difficulty Analysis
+function renderDifficultyAnalysis(attempt: TestAttempt) {
+    const difficultyContainer = document.getElementById('difficulty-analysis-view');
+    if (!difficultyContainer) return;
+    
+    // Categorize questions by time taken (as proxy for difficulty)
+    const avgTime = attempt.timePerQuestion.reduce((a, b) => a + b, 0) / attempt.timePerQuestion.length;
+    
+    const quickQuestions: { idx: number, time: number, correct: boolean }[] = [];
+    const normalQuestions: { idx: number, time: number, correct: boolean }[] = [];
+    const slowQuestions: { idx: number, time: number, correct: boolean }[] = [];
+    
+    attempt.timePerQuestion.forEach((time, i) => {
+        const correct = attempt.userAnswers[i] === attempt.fullTest.questions[i].answer;
+        const item = { idx: i, time, correct };
+        
+        if (time < avgTime * 0.6) {
+            quickQuestions.push(item);
+        } else if (time > avgTime * 1.5) {
+            slowQuestions.push(item);
+        } else {
+            normalQuestions.push(item);
+        }
+    });
+    
+    const quickAccuracy = quickQuestions.length > 0 ? (quickQuestions.filter(q => q.correct).length / quickQuestions.length) * 100 : 0;
+    const normalAccuracy = normalQuestions.length > 0 ? (normalQuestions.filter(q => q.correct).length / normalQuestions.length) * 100 : 0;
+    const slowAccuracy = slowQuestions.length > 0 ? (slowQuestions.filter(q => q.correct).length / slowQuestions.length) * 100 : 0;
+    
+    // Determine if more time = better accuracy
+    const timeVsAccuracyTrend = slowAccuracy > quickAccuracy ? 'positive' : slowAccuracy < quickAccuracy ? 'negative' : 'neutral';
+    
+    difficultyContainer.innerHTML = `
+        <div class="difficulty-overview">
+            <h4><span class="material-symbols-outlined">analytics</span> Time vs Accuracy Analysis</h4>
+            <p class="analysis-description">Understanding how time spent correlates with your accuracy</p>
+        </div>
+        
+        <div class="difficulty-grid">
+            <div class="difficulty-card quick">
+                <div class="difficulty-header">
+                    <span class="material-symbols-outlined">bolt</span>
+                    <h5>Quick Answers</h5>
+                </div>
+                <div class="difficulty-stats">
+                    <div class="big-stat">${quickQuestions.length}</div>
+                    <div class="stat-detail">Questions < ${(avgTime * 0.6).toFixed(0)}s</div>
+                </div>
+                <div class="difficulty-accuracy">
+                    <div class="accuracy-bar" style="--accuracy: ${quickAccuracy}%">
+                        <div class="accuracy-fill" style="background: ${quickAccuracy >= 60 ? 'var(--success-color)' : 'var(--danger-color)'}"></div>
+                    </div>
+                    <span>${quickAccuracy.toFixed(0)}% accurate</span>
+                </div>
+            </div>
+            
+            <div class="difficulty-card normal">
+                <div class="difficulty-header">
+                    <span class="material-symbols-outlined">timer</span>
+                    <h5>Normal Pace</h5>
+                </div>
+                <div class="difficulty-stats">
+                    <div class="big-stat">${normalQuestions.length}</div>
+                    <div class="stat-detail">Average time questions</div>
+                </div>
+                <div class="difficulty-accuracy">
+                    <div class="accuracy-bar" style="--accuracy: ${normalAccuracy}%">
+                        <div class="accuracy-fill" style="background: ${normalAccuracy >= 60 ? 'var(--success-color)' : 'var(--warning-color)'}"></div>
+                    </div>
+                    <span>${normalAccuracy.toFixed(0)}% accurate</span>
+                </div>
+            </div>
+            
+            <div class="difficulty-card slow">
+                <div class="difficulty-header">
+                    <span class="material-symbols-outlined">hourglass_top</span>
+                    <h5>Time-Consuming</h5>
+                </div>
+                <div class="difficulty-stats">
+                    <div class="big-stat">${slowQuestions.length}</div>
+                    <div class="stat-detail">Questions > ${(avgTime * 1.5).toFixed(0)}s</div>
+                </div>
+                <div class="difficulty-accuracy">
+                    <div class="accuracy-bar" style="--accuracy: ${slowAccuracy}%">
+                        <div class="accuracy-fill" style="background: ${slowAccuracy >= 60 ? 'var(--success-color)' : 'var(--danger-color)'}"></div>
+                    </div>
+                    <span>${slowAccuracy.toFixed(0)}% accurate</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="insight-box ${timeVsAccuracyTrend}">
+            <span class="material-symbols-outlined">${timeVsAccuracyTrend === 'positive' ? 'trending_up' : timeVsAccuracyTrend === 'negative' ? 'trending_down' : 'trending_flat'}</span>
+            <div class="insight-content">
+                <h5>${timeVsAccuracyTrend === 'positive' ? 'Taking Time Helps!' : timeVsAccuracyTrend === 'negative' ? 'Quick Instincts Work!' : 'Balanced Performance'}</h5>
+                <p>${timeVsAccuracyTrend === 'positive' 
+                    ? 'You perform better when you take more time to think. Consider slowing down on difficult questions.' 
+                    : timeVsAccuracyTrend === 'negative' 
+                    ? 'Your quick answers are more accurate! Trust your first instinct and avoid overthinking.' 
+                    : 'Your accuracy is consistent regardless of time spent. Great balanced approach!'}</p>
+            </div>
+        </div>
+    `;
 }
 
 function createQuestionReviewHTML(q: Question, index: number, attempt: TestAttempt): string {
@@ -2062,7 +2551,6 @@ function renderAnalyticsDashboard() {
     if (history.length === 0) {
         analyticsStatsGrid.innerHTML = `<p class="placeholder" style="grid-column: 1/-1;">No data available. Complete some tests to see your analytics.</p>`;
         subjectMasteryContainer.innerHTML = '';
-        // topicInsightsContainer has been removed from HTML, so no need to interact with it
         return;
     }
 
@@ -2073,6 +2561,37 @@ function renderAnalyticsDashboard() {
     let totalCorrect = 0;
     let totalScoreSum = 0;
     let totalTimeTaken = 0;
+    
+    // Calculate streak
+    let currentStreak = 0;
+    let bestStreak = 0;
+    let tempStreak = 0;
+    
+    // Sort history by date for streak calculation
+    const sortedHistory = [...history].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+    
+    sortedHistory.forEach((attempt, index) => {
+        if (attempt.score >= 50) {
+            tempStreak++;
+            bestStreak = Math.max(bestStreak, tempStreak);
+            if (index === 0 || (index > 0 && sortedHistory[index - 1].score >= 50)) {
+                currentStreak = tempStreak;
+            }
+        } else {
+            if (index === 0) currentStreak = 0;
+            tempStreak = 0;
+        }
+    });
+
+    // Calculate improvement trend
+    let improvementTrend = 0;
+    if (history.length >= 2) {
+        const recentScores = sortedHistory.slice(0, Math.min(5, sortedHistory.length)).map(a => a.score);
+        const olderScores = sortedHistory.slice(-Math.min(5, sortedHistory.length)).map(a => a.score);
+        const recentAvg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
+        const olderAvg = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+        improvementTrend = recentAvg - olderAvg;
+    }
 
     history.forEach(attempt => {
         totalQuestions += attempt.totalQuestions;
@@ -2109,8 +2628,11 @@ function renderAnalyticsDashboard() {
     const overallAccuracy = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
     const totalTimeHours = Math.floor(totalTimeTaken / 3600);
     const totalTimeMinutes = Math.floor((totalTimeTaken % 3600) / 60);
+    
+    const trendIcon = improvementTrend > 2 ? 'trending_up' : improvementTrend < -2 ? 'trending_down' : 'trending_flat';
+    const trendColor = improvementTrend > 2 ? 'var(--success-color)' : improvementTrend < -2 ? 'var(--danger-color)' : 'var(--text-muted)';
 
-    // Render Stats Grid
+    // Render Stats Grid with Pro Features
     analyticsStatsGrid.innerHTML = `
         <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">history</span>
@@ -2130,12 +2652,32 @@ function renderAnalyticsDashboard() {
         <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">timer</span>
             <div class="stat-value">${totalTimeHours}h ${totalTimeMinutes}m</div>
-            <div class="stat-label">Total Study Time</div>
+            <div class="stat-label">Study Time</div>
+        </div>
+        <div class="stat-card streak">
+            <span class="material-symbols-outlined stat-icon" style="color: var(--warning-color);">local_fire_department</span>
+            <div class="stat-value" style="color: var(--warning-color);">${currentStreak}</div>
+            <div class="stat-label">Current Streak</div>
+        </div>
+        <div class="stat-card best-streak">
+            <span class="material-symbols-outlined stat-icon" style="color: var(--accent-emerald);">emoji_events</span>
+            <div class="stat-value" style="color: var(--accent-emerald);">${bestStreak}</div>
+            <div class="stat-label">Best Streak</div>
+        </div>
+        <div class="stat-card trend">
+            <span class="material-symbols-outlined stat-icon" style="color: ${trendColor};">${trendIcon}</span>
+            <div class="stat-value" style="color: ${trendColor};">${improvementTrend > 0 ? '+' : ''}${improvementTrend.toFixed(1)}%</div>
+            <div class="stat-label">Trend</div>
+        </div>
+        <div class="stat-card questions">
+            <span class="material-symbols-outlined stat-icon" style="color: var(--info-color);">quiz</span>
+            <div class="stat-value" style="color: var(--info-color);">${totalQuestions}</div>
+            <div class="stat-label">Questions Done</div>
         </div>
     `;
-
-    // 2. Score Trend removed previously
-    // 3. Topic Insights (Strongest/Weakest) removed as per request
+    
+    // Add Score Trend Graph
+    renderScoreTrendGraph(sortedHistory);
 
     // 4. Render Subject Mastery Cards (Interactive)
     const sortedSubjects = Object.entries(aggregatedSubjectData)
@@ -2169,6 +2711,32 @@ function renderAnalyticsDashboard() {
             </div>
         </div>
     `}).join('');
+}
+
+// Score Trend Graph
+function renderScoreTrendGraph(sortedHistory: TestAttempt[]) {
+    const trendContainer = document.createElement('div');
+    trendContainer.className = 'report-card score-trend-card';
+    trendContainer.innerHTML = `
+        <h3><span class="material-symbols-outlined">show_chart</span> Score Trend</h3>
+        <div class="score-trend-graph">
+            ${sortedHistory.slice(0, 10).reverse().map((attempt, i) => {
+                const height = Math.max(attempt.score, 5);
+                const barColor = attempt.score >= 60 ? 'var(--success-color)' : attempt.score >= 40 ? 'var(--warning-color)' : 'var(--danger-color)';
+                const date = new Date(attempt.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                return `
+                    <div class="trend-bar-container" title="${attempt.testName}: ${attempt.score.toFixed(1)}%">
+                        <div class="trend-bar" style="height: ${height}%; background: ${barColor}"></div>
+                        <span class="trend-label">${date}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <p class="trend-caption">Last ${Math.min(sortedHistory.length, 10)} tests performance</p>
+    `;
+    
+    // Insert after stats grid
+    analyticsStatsGrid.parentNode?.insertBefore(trendContainer, analyticsStatsGrid.nextSibling);
 }
 
 // Add Event delegation for Subject Cards
