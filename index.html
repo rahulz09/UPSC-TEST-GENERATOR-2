@@ -14,20 +14,117 @@
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
-  <main>
-    <div class="top-controls">
-        <div class="data-backup-box">
-            <button id="backup-data-btn" title="Backup Profile (Download)">
-                <span class="material-symbols-outlined">cloud_download</span>
-            </button>
-            <div class="divider"></div>
-            <button id="restore-data-btn" title="Restore Profile (Upload)">
-                <span class="material-symbols-outlined">cloud_upload</span>
-            </button>
-            <input type="file" id="restore-file-input" class="hidden" accept=".json,application/json">
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="login-logo">
+          <span class="material-symbols-outlined">school</span>
         </div>
+        <h1><span class="gradient-text">UPSC Test Generator</span></h1>
+        <p>Your personalized platform for mastering the civil services exam</p>
+      </div>
+      
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="login-username">
+            <span class="material-symbols-outlined">person</span>
+            Username
+          </label>
+          <input type="text" id="login-username" placeholder="Enter your username" required autocomplete="username">
+        </div>
+        
+        <div class="form-group">
+          <label for="login-password">
+            <span class="material-symbols-outlined">lock</span>
+            Password
+          </label>
+          <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password">
+        </div>
+        
+        <div class="form-options">
+          <label class="remember-me">
+            <input type="checkbox" id="remember-me">
+            <span>Remember me</span>
+          </label>
+        </div>
+        
+        <button type="submit" class="login-btn" id="login-submit-btn">
+          <span class="material-symbols-outlined">login</span>
+          Sign In
+        </button>
+        
+        <div class="login-divider">
+          <span>or</span>
+        </div>
+        
+        <button type="button" class="register-btn" id="show-register-btn">
+          <span class="material-symbols-outlined">person_add</span>
+          Create New Account
+        </button>
+      </form>
+      
+      <form id="register-form" class="login-form hidden">
+        <div class="form-group">
+          <label for="register-name">
+            <span class="material-symbols-outlined">badge</span>
+            Full Name
+          </label>
+          <input type="text" id="register-name" placeholder="Enter your full name" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="register-username">
+            <span class="material-symbols-outlined">person</span>
+            Username
+          </label>
+          <input type="text" id="register-username" placeholder="Choose a username" required autocomplete="username">
+        </div>
+        
+        <div class="form-group">
+          <label for="register-password">
+            <span class="material-symbols-outlined">lock</span>
+            Password
+          </label>
+          <input type="password" id="register-password" placeholder="Create a password" required autocomplete="new-password">
+        </div>
+        
+        <div class="form-group">
+          <label for="register-confirm">
+            <span class="material-symbols-outlined">verified_user</span>
+            Confirm Password
+          </label>
+          <input type="password" id="register-confirm" placeholder="Confirm your password" required autocomplete="new-password">
+        </div>
+        
+        <button type="submit" class="login-btn" id="register-submit-btn">
+          <span class="material-symbols-outlined">person_add</span>
+          Create Account
+        </button>
+        
+        <button type="button" class="back-to-login-btn" id="back-to-login-btn">
+          <span class="material-symbols-outlined">arrow_back</span>
+          Back to Login
+        </button>
+      </form>
+      
+      <p class="login-footer">Secure login • Your data stays local</p>
     </div>
+  </div>
+
+  <main class="hidden">
+    <input type="file" id="restore-file-input" class="hidden" accept=".json,application/json">
     <header>
+      <div class="user-profile-bar">
+        <div class="user-info">
+          <span class="material-symbols-outlined">account_circle</span>
+          <span id="user-display-name">User</span>
+        </div>
+        <button id="logout-btn" class="logout-btn" title="Logout">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Logout</span>
+        </button>
+      </div>
       <div class="header-title-container">
         <h1><span class="gradient-text">UPSC Test Generator</span></h1>
       </div>
