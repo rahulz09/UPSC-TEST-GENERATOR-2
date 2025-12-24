@@ -323,6 +323,10 @@ Subject: Science | Topic: Solar System
           <!-- Question will be rendered here -->
         </div>
         <div class="question-nav">
+          <button id="prev-btn" class="action-btn prev-btn">
+            <span class="material-symbols-outlined">arrow_back</span>
+            <span class="btn-text">Prev</span>
+          </button>
           <button id="mark-review-btn" class="action-btn">
             <span class="material-symbols-outlined">bookmark</span>
             <span class="btn-text">Review</span>
@@ -360,7 +364,8 @@ Subject: Science | Topic: Solar System
           <div class="shortcuts-summary">
             <h4>Keyboard Shortcuts</h4>
             <div class="shortcut-item"><span>1-4</span> Select Option</div>
-            <div class="shortcut-item"><span>Space</span> Save & Next</div>
+            <div class="shortcut-item"><span>→ / Space</span> Next Question</div>
+            <div class="shortcut-item"><span>←</span> Previous Question</div>
             <div class="shortcut-item"><span>M</span> Mark for Review</div>
             <div class="shortcut-item"><span>C</span> Clear Response</div>
           </div>
@@ -436,16 +441,25 @@ Subject: Science | Topic: Solar System
     <!-- New Tab Navigation -->
     <div class="report-tabs-container">
       <button class="report-tab-btn active" data-target="mistakes-view">
-        <span class="material-symbols-outlined">warning</span> Mistake Review
+        <span class="material-symbols-outlined">warning</span> Mistakes
       </button>
       <button class="report-tab-btn" data-target="all-questions-view">
-        <span class="material-symbols-outlined">list_alt</span> All Questions
+        <span class="material-symbols-outlined">list_alt</span> All Q's
       </button>
       <button class="report-tab-btn" data-target="subject-breakdown-view">
-        <span class="material-symbols-outlined">pie_chart</span> Subject Breakdown
+        <span class="material-symbols-outlined">category</span> Subject
+      </button>
+      <button class="report-tab-btn" data-target="topic-wise-view">
+        <span class="material-symbols-outlined">topic</span> Topics
       </button>
       <button class="report-tab-btn" data-target="time-analysis-view">
-        <span class="material-symbols-outlined">timer</span> Time Analysis
+        <span class="material-symbols-outlined">timer</span> Time
+      </button>
+      <button class="report-tab-btn" data-target="bias-analysis-view">
+        <span class="material-symbols-outlined">psychology</span> Bias
+      </button>
+      <button class="report-tab-btn" data-target="difficulty-analysis-view">
+        <span class="material-symbols-outlined">speed</span> Difficulty
       </button>
     </div>
 
@@ -463,7 +477,19 @@ Subject: Science | Topic: Solar System
         <!-- Content injected via JS -->
       </div>
       
+      <div id="topic-wise-view" class="report-tab-pane">
+        <!-- Content injected via JS -->
+      </div>
+      
       <div id="time-analysis-view" class="report-tab-pane">
+        <!-- Content injected via JS -->
+      </div>
+      
+      <div id="bias-analysis-view" class="report-tab-pane">
+        <!-- Content injected via JS -->
+      </div>
+      
+      <div id="difficulty-analysis-view" class="report-tab-pane">
         <!-- Content injected via JS -->
       </div>
     </div>
